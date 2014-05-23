@@ -8,6 +8,9 @@ import sys
 import auth
 import os.path
 import time
+from collections import defaultdict
+import urllib
+import json
 
 access_token_pth = '.access_token'
 app_id = '4372631' # milosApp id
@@ -43,3 +46,12 @@ with open(access_token_pth, encoding='utf-8') as token_file:
     user_id = token_file.readline().rstrip()
     print('Your token is', token)
     print('Your id is', user_id)
+
+res = urllib.request.urlopen('https://api.vk.com/method/messages.get?offset=0&count=10&access_token='+token)
+code = json.loads(res.read().decode('utf-8'))
+total_cnt = code['response'][0]
+print('Total message count:', total_cnt)
+msgs = defaultdict(list) 
+for i in range(1, 10):
+    msgs[code['response'][i]['uid']].append(code['response'][i]['body'])
+# Work in progress here...
