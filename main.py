@@ -32,8 +32,8 @@ if not os.path.isfile(access_token_pth):
         print('Authorization required to proceed\n')
         print('Login: ', end="")
         login = input()
-        print('Pass: ', end="")
-        passw = input()
+        import getpass
+        passw = getpass.getpass('Pass: ')
         new_token = auth.auth(login, passw, app_id, scope)
         token_file.write(time.asctime(time.localtime()) + '\n')
         token_file.write(new_token[0] + '\n')
