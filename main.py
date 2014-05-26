@@ -16,7 +16,25 @@ access_token_pth = '.access_token'
 app_id = '4372631' # milosApp id
 scope = '4096' # 'messages' privileges
 expire_time = 86400 # 24 hours
+maxcnt = 60 # Max messages count per request
+total_cnt = None
+token = None
 
+# This function loads messanges from the remote
+def msg_process(pos, cnt):
+    if token is None:
+        raise RuntimeError('Token undefined: not authorized')
+    res = urllib.request.urlopen('https://api.vk.com/method/messages.get?offset='+str(pos)+'&count='
+                                 +str(cnt)+'&access_token='+token)
+    code = json.loads(res.read().decode('utf-8'))
+    total_cnt = code['response'][0]
+    msgs = defaultdict(list) 
+    for i in range(1, cnt + 1):
+        print('id=', code['response'][i]['uid'], 'msg=', code['response'][i]['body'])
+        msgs[code['response'][i]['uid']].append(code['response'][i]['body'])
+    # TODO: msgs processing here
+        
+                                         
 # Checking if token hasn't expired yet
 if os.path.isfile(access_token_pth):
     with open(access_token_pth, encoding='utf-8') as token_file:
@@ -47,11 +65,19 @@ with open(access_token_pth, encoding='utf-8') as token_file:
     print('Your token is', token)
     print('Your id is', user_id)
 
-res = urllib.request.urlopen('https://api.vk.com/method/messages.get?offset=0&count=10&access_token='+token)
+# Getting total count
+res = urllib.request.urlopen('https://api.vk.com/method/messages.get?offset=0&count=1&access_token='+token)
 code = json.loads(res.read().decode('utf-8'))
-total_cnt = code['response'][0]
-print('Total message count:', total_cnt)
-msgs = defaultdict(list) 
-for i in range(1, 10):
-    msgs[code['response'][i]['uid']].append(code['response'][i]['body'])
-# Work in progress here...
+remain = total_cnt = code['response'][0]
+print('Total message count:', total_cnt, code['response'][0])
+
+try:
+    while remain > maxcnt:
+        msg_process(total_cnt - remain, maxcnt)
+        remain -= maxcnt
+
+        if remain > 0:
+            msg_process(total_cnt - remain, remain)
+except IndexError:
+    print('Error getting messages')
+    exit(1)
