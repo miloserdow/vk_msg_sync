@@ -6,6 +6,7 @@ __license__ = 'GPLv2'
 
 import sys
 import auth
+import getpass
 import os.path
 import time
 from collections import defaultdict
@@ -20,8 +21,23 @@ maxcnt = 60 # Max messages count per request
 total_cnt = None
 token = None
 
+# Get full name by id
+def get_name(id):
+    res = urllib.request.urlopen('https://api.vk.com/method/users.get?user_ids='+str(id)+'&v=5.8')
+    code = json.loads(res.read().decode('utf-8'))
+    return code['response'][0]['first_name'], code['response'][0]['last_name']
+
+# Write messges into files
+def msg_process(msgs):
+    for id in msgs:
+        name = get_name(id)
+        fname, lname = name[0], name[1]
+        with open('msgs/'+fname+'_'+lname+'.msg', 'w+', encoding='utf-8') as cur_file:
+            for cur_msg in msgs[id]:
+                cur_file.write(cur_msg+'\n')
+
 # This function loads messanges from the remote
-def msg_process(pos, cnt):
+def msg_fetch(pos, cnt):
     if token is None:
         raise RuntimeError('Token undefined: not authorized')
     res = urllib.request.urlopen('https://api.vk.com/method/messages.get?offset='+str(pos)+'&count='
@@ -30,9 +46,8 @@ def msg_process(pos, cnt):
     total_cnt = code['response'][0]
     msgs = defaultdict(list) 
     for i in range(1, cnt + 1):
-        print('id=', code['response'][i]['uid'], 'msg=', code['response'][i]['body'])
         msgs[code['response'][i]['uid']].append(code['response'][i]['body'])
-    # TODO: msgs processing here
+    msg_process(msgs)
         
                                          
 # Checking if token hasn't expired yet
@@ -50,7 +65,6 @@ if not os.path.isfile(access_token_pth):
         print('Authorization required to proceed\n')
         print('Login: ', end="")
         login = input()
-        import getpass
         passw = getpass.getpass('Pass: ')
         new_token = auth.auth(login, passw, app_id, scope)
         token_file.write(time.asctime(time.localtime()) + '\n')
@@ -71,13 +85,19 @@ code = json.loads(res.read().decode('utf-8'))
 remain = total_cnt = code['response'][0]
 print('Total message count:', total_cnt, code['response'][0])
 
+# Creating msg directory if not exists
+if not os.path.exists('msgs/'):
+    os.makedirs('msgs/')
+
+# Fetching & processing messages
 try:
     while remain > maxcnt:
-        msg_process(total_cnt - remain, maxcnt)
+        msg_fetch(total_cnt - remain, maxcnt)
         remain -= maxcnt
 
-        if remain > 0:
-            msg_process(total_cnt - remain, remain)
+    if remain > 0:
+            msg_fetch(total_cnt - remain, remain)
+# This could happen if smth goes wrong, e.g. request failure
 except IndexError:
     print('Error getting messages')
     exit(1)
